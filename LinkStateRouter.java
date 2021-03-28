@@ -2,7 +2,7 @@
  * LinkStateRouter
  * Author: Christian Duncan
  * Modified by: 
- * Represents a router that uses a Distance Vector Routing algorithm.
+ * Represents a router that uses a Link State Routing algorithm.
  ***************/
 import java.util.ArrayList;
 
@@ -15,11 +15,35 @@ public class LinkStateRouter extends Router {
     }
 
     Debug debug;
+    Map<Integer, Long> costs; // Stores the cost metric of each router's neighbors
     
     public LinkStateRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
         debug = Debug.getInstance();  // For debugging!
+        costs = new HashMap<>();
     }
+
+    private Map<Integer, Long> costs;
+
+    private void findCosts() {
+        for (int id : nic.getOutgoingLinks()) {
+            long start = System.currentTimeMillis();
+            // TODO: Send packet and wait for response
+            long end = System.currentTimeMillis();
+            costs.put(id, end - start);
+        }
+    }
+
+    /* TODO: Construct the Link State Packet
+    Packet includes:
+    - Identity of sender
+    - Sequence number (32-bit) and age (decrement age after each second)
+    - List of neighbors
+    */
+
+    // Determining when the packet is constructed (Important)
+    
+
 
     public void run() {
         while (true) {
