@@ -1,16 +1,48 @@
 /***************
  * LinkStateRouter
  * Author: Christian Duncan
- * Modified by: 
+ * Modified by: Joey Germain, Phillip Nam, Kevin Sangurima
  * Represents a router that uses a Link State Routing algorithm.
  ***************/
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 
 public class LinkStateRouter extends Router {
     // A generator for the given LinkStateRouter class
     public static class Generator extends Router.Generator {
         public Router createRouter(int id, NetworkInterface nic) {
             return new LinkStateRouter(id, nic);
+        }
+    }
+
+    public static class Packet {
+        // This is how we will store our Packet Header information
+        int source;
+        int dest;
+        int hopCount;  // Maximum hops to get there
+        Object payload;  // The payload!
+        
+        public Packet(int source, int dest, int hopCount, Object payload) {
+            this.source = source;
+            this.dest = dest;
+            this.hopCount = hopCount;
+            this.payload = payload;
+        }
+
+    }
+
+    public static class PingPacket extends Packet {
+        public PingPacket(int source, int dest, int hopCount) {
+            // The constructor automatically sets the payload to be the current time
+            super(source, dest, hopCount, System.currentTimeMillis());
+        }
+    }
+
+    public static class PongPacket extends Packet {
+        public PongPacket(int source, int dest, int hopCount, long pingTime) {
+            // The constructor automatically sets the payload to be the delta time
+            super(source, dest, hopCount, System.currentTimeMillis() - pingTime);
         }
     }
 
@@ -23,14 +55,10 @@ public class LinkStateRouter extends Router {
         costs = new HashMap<>();
     }
 
-    private Map<Integer, Long> costs;
-
     private void findCosts() {
-        for (int id : nic.getOutgoingLinks()) {
-            long start = System.currentTimeMillis();
-            // TODO: Send packet and wait for response
-            long end = System.currentTimeMillis();
-            costs.put(id, end - start);
+        for (int neighbor : nic.getOutgoingLinks()) {
+            Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
+            nic.transmit(neighbor, pingPacket);
         }
     }
 
@@ -61,6 +89,28 @@ public class LinkStateRouter extends Router {
                 // There is something to route through - or it might have arrived at destination
                 process = true;
                 debug.println(3, "(LinkStateRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
+
+                if (toRoute.data instanceof PingPacket) {
+                    debug.println(4, "Received a PingPacket");
+                    // If we receive a ping packet, respond with a pong
+                    PingPacket packet = (PingPacket) toRoute.data;
+                    int source = packet.source;
+                    long pingTime = (long) packet.payload;
+                    PongPacket pong = new PongPacket(this.nsap, source, 1, pingTime);
+                    nic.transmit(source, pong);
+                } else if (toRoute.data instanceof PongPacket) {
+                    debug.println(4, "Received a PongPacket");
+                    // If we receive a pong packet, use it to store the cost we previously requested
+                    PongPacket packet = (PongPacket) toRoute.data;
+                    int source = packet.source;
+                    long cost = (long) packet.payload;
+                    costs.put(source, cost);
+                } else if (toRoute.data instanceof Packet) {
+                    debug.println(4, "Received a Packet");
+                    // TODO: route normally
+                } else {
+                    debug.println(4, "Packet is not of type: Packet, PingPacket, or PongPacket");
+                }
             }
 
             if (!process) {
