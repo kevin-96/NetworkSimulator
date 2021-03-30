@@ -58,8 +58,12 @@ public class LinkStateRouter extends Router {
     private void findCosts() {
         for (int neighbor : nic.getOutgoingLinks()) {
             Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
-            nic.transmit(neighbor, pingPacket);
+            nic.transmit(neighbor, pingPacket); // 
+            // TODO: Send out the link state packet
         }
+        // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap of hashmap)
+        // Debug: Print a node's graph
+        // Perform Djikstra's Algorithm for the routing table (Make function call)
     }
 
     /* TODO: Construct the Link State Packet
@@ -72,12 +76,16 @@ public class LinkStateRouter extends Router {
     // Determining when the packet is constructed (Important)
     
 
-
+    int costDelay = 5000;
     public void run() {
         // TODO: call this method at a regular interval instead
-        findCosts();
-
+        // findCosts();
+        long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
+            if (System.currentTimeMillis() > nextFindCost) {
+                nextFindCost = System.currentTimeMillis() + costDelay;
+                findCosts();
+            }
             // See if there is anything to process
             boolean process = false;
             NetworkInterface.TransmitPair toSend = nic.getTransmit();
@@ -112,7 +120,7 @@ public class LinkStateRouter extends Router {
                     debug.println(4, "Received a PongPacket");
                     // If we receive a pong packet, use it to store the cost we previously requested
                     PongPacket packet = (PongPacket) toRoute.data;
-                    int source = packet.source;
+                    int source = packet.source; // Source of the packet is the destination of the ping packet
                     long cost = (long) packet.payload;
                     costs.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
