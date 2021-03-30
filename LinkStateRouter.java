@@ -115,6 +115,7 @@ public class LinkStateRouter extends Router {
                     int source = packet.source;
                     long cost = (long) packet.payload;
                     costs.put(source, cost);
+                    debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
                 } else if (toRoute.data instanceof Packet) {
                     debug.println(4, "Received a Packet");
                     // TODO: route normally
