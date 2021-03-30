@@ -74,6 +74,9 @@ public class LinkStateRouter extends Router {
 
 
     public void run() {
+        // TODO: call this method at a regular interval instead
+        findCosts();
+
         while (true) {
             // See if there is anything to process
             boolean process = false;
@@ -82,13 +85,20 @@ public class LinkStateRouter extends Router {
                 // There is something to send out
                 process = true;
                 debug.println(3, "(LinkStateRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
+
+                // TODO: this is a placeholder until we really figure out routing
+                if (toSend.data instanceof PingPacket || toSend.data instanceof PongPacket) {
+                    int dest = ((Packet) toSend.data).dest;
+                    int link = nic.getOutgoingLinks().indexOf(dest);
+                    nic.sendOnLink(link, toSend.data);
+                }
             }
 
             NetworkInterface.ReceivePair toRoute = nic.getReceived();
             if (toRoute != null) {
                 // There is something to route through - or it might have arrived at destination
                 process = true;
-                debug.println(3, "(LinkStateRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
+                debug.println(3, "(LinkStateRouter.run): I received: " + toRoute.data + " from source: " + toRoute.originator);
 
                 if (toRoute.data instanceof PingPacket) {
                     debug.println(4, "Received a PingPacket");
