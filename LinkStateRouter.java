@@ -23,47 +23,12 @@ public class LinkStateRouter extends Router {
         int hopCount;  // Maximum hops to get there
         Object payload;  // The payload!
         
-        public Packet(int source, int dest, int hopCount, Object payload) {
+        public Packet(int source, int dest, int hopCount) {
             this.source = source;
             this.dest = dest;
             this.hopCount = hopCount;
-            this.payload = payload;
         }
 
-    }
-
-    public static class PingPacket extends Packet {
-        public PingPacket(int source, int dest, int hopCount) {
-            // The constructor automatically sets the payload to be the current time
-            super(source, dest, hopCount, System.currentTimeMillis());
-        }
-    }
-
-    public static class PongPacket extends Packet {
-        public PongPacket(int source, int dest, int hopCount, long pingTime) {
-            // The constructor automatically sets the payload to be the delta time
-            super(source, dest, hopCount, System.currentTimeMillis() - pingTime);
-        }
-    }
-
-    Debug debug;
-    Map<Integer, Long> costs; // Stores the cost metric of each router's neighbors
-    
-    public LinkStateRouter(int nsap, NetworkInterface nic) {
-        super(nsap, nic);
-        debug = Debug.getInstance();  // For debugging!
-        costs = new HashMap<>();
-    }
-
-    private void findCosts() {
-        for (int neighbor : nic.getOutgoingLinks()) {
-            Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
-            nic.transmit(neighbor, pingPacket); // 
-            // TODO: Send out the link state packet
-        }
-        // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap of hashmap)
-        // Debug: Print a node's graph
-        // Perform Djikstra's Algorithm for the routing table (Make function call)
     }
 
     /* TODO: Construct the Link State Packet
@@ -74,11 +39,72 @@ public class LinkStateRouter extends Router {
     */
 
     // Determining when the packet is constructed (Important)
+
+    public static class PingPacket extends Packet {
+        long pingTime;
+
+        public PingPacket(int source, int dest, int hopCount) {
+            // The constructor automatically sets the payload to be the current time
+            super(source, dest, hopCount);
+            this.pingTime = System.currentTimeMillis();
+        }
+    }
+
+    public static class PongPacket extends Packet {
+        long pongTime;
+
+        public PongPacket(int source, int dest, int hopCount, long pingTime) {
+            // The constructor automatically sets the payload to be the delta time
+            super(source, dest, hopCount);
+            this.pongTime = System.currentTimeMillis() - pingTime;
+        }
+    }
+    
+    public static class LinkStatePacket extends Packet {
+        Map<Integer,Long> costs; // Link state packet contain all of the information it has learned from its neighbors
+
+        public LinkStatePacket(int source, int dest, int hopCount, Map<Integer,Long> costs) {
+            // The constructor automatically sets the payload to be the delta time
+            super(source, dest, hopCount);
+            this.costs = costs;
+        }
+    }
+
+    Debug debug;
+    Map<Integer, Long> neighborCosts; // Stores the costs of each router's neighbors (Between neighbors)
+    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs
+
+    public LinkStateRouter(int nsap, NetworkInterface nic) {
+        super(nsap, nic);
+        debug = Debug.getInstance();  // For debugging!
+        neighborCosts = new HashMap<>(); // 
+    }
+
+    private void findCosts() {
+        ArrayList<Integer> neighbors = nic.getOutgoingLinks();
+        for (int i = 0; i < neighbors.size(); i++) {
+            int neighbor = neighbors.get(i);
+            Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
+            LinkStatePacket linkStatePacket = new LinkStatePacket(this.nsap, neighbor, 1, this.costs) // Link State Packet created
+            nic.sendOnLink(i, pingPacket); // could also use sendOnLink (or toSend?)
+            nic.sendOnLink(i, linkStatePacket); // Send out link state packet
+        }
+        // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap of hashmap)
+        Map<Integer, Map<Integer, Long>> routingTable
+        
+
+        // Debug: Print a node's graph
+        // Perform Djikstra's Algorithm for the routing table (Make function call)
+    }
+
+/////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////
     
 
     int costDelay = 5000;
     public void run() {
-        // TODO: call this method at a regular interval instead
         // findCosts();
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
@@ -93,13 +119,6 @@ public class LinkStateRouter extends Router {
                 // There is something to send out
                 process = true;
                 debug.println(3, "(LinkStateRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
-
-                // TODO: this is a placeholder until we really figure out routing
-                if (toSend.data instanceof PingPacket || toSend.data instanceof PongPacket) {
-                    int dest = ((Packet) toSend.data).dest;
-                    int link = nic.getOutgoingLinks().indexOf(dest);
-                    nic.sendOnLink(link, toSend.data);
-                }
             }
 
             NetworkInterface.ReceivePair toRoute = nic.getReceived();
@@ -113,7 +132,7 @@ public class LinkStateRouter extends Router {
                     // If we receive a ping packet, respond with a pong
                     PingPacket packet = (PingPacket) toRoute.data;
                     int source = packet.source;
-                    long pingTime = (long) packet.payload;
+                    long pingTime = packet.pingTime
                     PongPacket pong = new PongPacket(this.nsap, source, 1, pingTime);
                     nic.transmit(source, pong);
                 } else if (toRoute.data instanceof PongPacket) {
@@ -121,9 +140,11 @@ public class LinkStateRouter extends Router {
                     // If we receive a pong packet, use it to store the cost we previously requested
                     PongPacket packet = (PongPacket) toRoute.data;
                     int source = packet.source; // Source of the packet is the destination of the ping packet
-                    long cost = (long) packet.payload;
-                    costs.put(source, cost);
+                    long cost = packet.pongTime;
+                    neighborCosts.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
+                } else if (toRoute.data instanceof LinkStatePacket) {
+                    // TODO
                 } else if (toRoute.data instanceof Packet) {
                     debug.println(4, "Received a Packet");
                     // TODO: route normally
