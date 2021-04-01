@@ -29,6 +29,8 @@ public class FloodRouter extends Router {
         }
     }
 
+  
+
     Debug debug;
     
     public FloodRouter(int nsap, NetworkInterface nic) {
