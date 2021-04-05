@@ -17,8 +17,12 @@ public class DistanceVectorRouter extends Router {
         }
     }
 
-    Map<Integer, Long> routingTable;
+    Map<Integer, Long> routingTable; //Change to distances
+    Map<Integer, Integer> routingTableIndex;
+    long[] distances; // Distances of each link
+    ArrayList<Map<Integer,Long>> neighborTables; // Tables that are being recieved from neighbors
     Debug debug;
+
     public static class Packet {
         // This is how we will store our Packet Header information
         int source;
@@ -50,13 +54,23 @@ public class DistanceVectorRouter extends Router {
     public DistanceVectorRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
         debug = Debug.getInstance();  // For debugging!
+        routingTable = new HashMap<>();
+        routingTableIndex = new HashMap<>();
+        int size = nic.getOutgoingLinks().size(); // number of links
+        distances = new long[size];
+        neighborTables = new ArrayList<>(size);
+        for(int i = 0; i<size; i++){
+            neighborTables.add(null);
+            distances[i] = Long.MAX_VALUE;
+        }
+
     }
 
     public void DetermineDistances(){
         for (int neighbor : nic.getOutgoingLinks()) {
-           routingTable.put(neighbor, Long.MAX_VALUE);
            Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
            nic.transmit(neighbor, pingPacket);
+           //Change to send on link
         }
     }
 
@@ -67,7 +81,7 @@ public class DistanceVectorRouter extends Router {
     }
 
     public void run() {
-        routingTable = new HashMap<>();
+        
 
         
         while (true) {
