@@ -60,7 +60,7 @@ public abstract class AbstractDynamicRouter extends Router {
 
     Debug debug;
     Map<Integer, Long> neighborCosts; // Stores the costs of each router's neighbors (Between neighbors)
-    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs
+    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
 
     public AbstractDynamicRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
@@ -87,28 +87,9 @@ public abstract class AbstractDynamicRouter extends Router {
 
     // TODO: Remove the "foundCosts" stuff from the code. It makes sure findCosts only runs once, which we're just doing for debugging
     protected boolean foundCosts = false;
-    protected void findCosts() {
-//        if (foundCosts) {
-//            return;
-//        }
-        ArrayList<Integer> neighbors = nic.getOutgoingLinks();
-        for (int i = 0; i < neighbors.size(); i++) {
-            int neighbor = neighbors.get(i);
-            Packet pingPacket = new PingPacket(this.nsap, neighbor, 1);
-            LinkStatePacket linkStatePacket = new LinkStatePacket(this.nsap, neighbor, 1, this.neighborCosts); // Link State Packet created
-            nic.sendOnLink(i, pingPacket); // Send out the ping packet
-            nic.sendOnLink(i, linkStatePacket); // Send out link state packet
-        }
 
-        foundCosts = true;
-        // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap of hashmap)
-        // Map<Integer, Map<Integer, Long>> routingTable;
-
-        // Debug: Print a node's graph
-
-        // TODO: Perform Djikstra's Algorithm for the routing table (Make function call)
-        // shortestPath(routingTable);
-    }
+    protected abstract void findCosts();
+    protected abstract void saveDistance(PongPacket pong);
 
     int costDelay = 10000;
     public void run() {
@@ -149,6 +130,7 @@ public abstract class AbstractDynamicRouter extends Router {
                     PongPacket packet = (PongPacket) toRoute.data;
                     int source = packet.source; // Source of the packet is the destination of the ping packet
                     long cost = packet.pongTime;
+                    saveDistance(packet);
                     neighborCosts.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
                 } else if (toRoute.data instanceof LinkStatePacket) {
