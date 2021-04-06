@@ -5,6 +5,7 @@
  * An abstract class that represents a dynamic router
  ***************/
 import java.util.Map;
+import java.util.HashMap;
 
 public abstract class AbstractDynamicRouter extends Router {
     public static class Packet {
