@@ -7,11 +7,30 @@
  ***************/
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 
 public class LinkStateRouter extends AbstractDynamicRouter {
 
+    public static class LinkStatePacket extends Packet {
+        Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
+        Set<Integer> nodesVisited;
+
+        public LinkStatePacket(int source, int dest, int hopCount, Map<Integer,Long> costs) {
+            // The constructor automatically sets the payload to be the delta time
+            super(source, dest, hopCount);
+            this.costs = costs;
+            this.nodesVisited = new HashSet<>(); // Keep track of the nodes that have been visited
+        }
+    }
+
+    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
+
     public LinkStateRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
+        routingTable = new HashMap<>(); // Each router builds a routing table for the entire graph
     }
 
     public static class Generator extends Router.Generator {
@@ -20,9 +39,34 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
+    protected void flood(LinkStatePacket p) {
+        ArrayList<Integer> outLinks = nic.getOutgoingLinks();
+        int size = outLinks.size();
+        for (int i = 0; i < size; i++) {
+            if (!p.nodesVisited.contains(outLinks.get(i))) {
+                // This packet hasn't reached this node yet - so send it along!
+                nic.sendOnLink(i, p);
+            }
+        }
+    }
+
     @Override
     protected void route(Packet p) {
+        if (p instanceof LinkStatePacket) {
+            debug.println(4, "Received a LinkStatePacket");
+            LinkStatePacket packet = (LinkStatePacket) p;
+            packet.nodesVisited.add(this.nsap);
+            // Get information from packet - new packet?
+            this.routingTable.put(packet.source, packet.costs);
+            // Continue flood routing the packet
+            this.flood(packet);
 
+            debug.println(5, "Packet source: " + packet.source);
+            debug.println(5, "Packet data: " + packet.costs.toString());
+        } else {
+            debug.println(4, "Received a Packet");
+
+        }
     }
 
     @Override
@@ -34,15 +78,11 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         for (int i = 0; i < neighbors.size(); i++) {
             int neighbor = neighbors.get(i);
             Packet pingPacket = new PingPacket(super.nsap, neighbor, 1);
-            LinkStatePacket linkStatePacket = new LinkStatePacket(super.nsap, neighbor, 1, super.neighborCosts); // Link
-                                                                                                               // State
-                                                                                                               // Packet
-                                                                                                               // created
+            LinkStatePacket linkStatePacket = new LinkStatePacket(super.nsap, neighbor, 1, super.neighborCosts);
             nic.sendOnLink(i, pingPacket); // Send out the ping packet
             nic.sendOnLink(i, linkStatePacket); // Send out link state packet
         }
 
-        foundCosts = true;
         // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap (Most likely will need to change this. to super.)
         // of hashmap)
         // Map<Integer, Map<Integer, Long>> routingTable;
