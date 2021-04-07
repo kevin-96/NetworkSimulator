@@ -15,6 +15,15 @@ import java.util.HashSet;
 
 public class LinkStateRouter extends AbstractDynamicRouter {
 
+    public static class RoutedPacket extends Packet  {
+        public List<Integer> route;
+
+        public RoutedPacket (Packet packet, List<Integer> route) {
+            super(packet.source, packet.dest, packet.hopCount, packet.payload);
+            this.route = route;
+        }
+    }
+    
     public static class LinkStatePacket extends Packet {
         Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
         Set<Integer> nodesVisited;
@@ -27,38 +36,13 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
-    private static class RoutingPaths {
-        private Map<Integer, Map<Integer, List<Integer>>> paths; // paths[0][6] => path from 0 - 6 
-
-        public RoutingPaths() {
-            paths = new HashMap<>();
-        }
-
-        public void put(int src, int dest, List<Integer> path) {
-            paths.putIfAbsent(src, new HashMap<>());
-            paths.get(src).put(dest, path);
-        }
-
-        public List<Integer> get(int src, int dest) {
-            try {
-                return paths.get(src).get(dest);
-            }
-            catch (Exception e) {
-                return null;
-            }
-        }
-
-        // public void calculate(int src, int dest, )
-
-    }
-
     Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
-    RoutingPaths paths; // paths[0][6] => path from 0 - 6 
+    Map<Integer, List<Integer>> paths; // Maps the nsap of a node to the path from this router to that node. Ex: paths.get(6) <- path from this to 6 
 
     public LinkStateRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
         routingTable = new HashMap<>(); // Each router builds a routing table for the entire graph
-        paths = new RoutingPaths();
+        paths = new HashMap<>();
     }
 
     public static class Generator extends Router.Generator {
@@ -67,23 +51,10 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
-    private void calculateRoutingPaths() {
-        RoutingPaths paths = new RoutingPaths();
-        for (Integer src : this.routingTable.keySet()) {
-            for (Integer dest : this.routingTable.get(src).keySet()) {
-                if (!src.equals(dest)) {
-                    paths.put(src, dest, djikstra(src, dest));
-                }
-            }
-        }
-        this.paths = paths;
-    }
-    private List<Integer> djikstra(int src, int dest) {
-        List<Integer> path = new ArrayList<>();
+    // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
+    public void findShortestPaths() {        
+        // TODO: calculate shortest paths
         
-        // TODO: calculate shortest path
-        
-        return path;
     }
 
     protected void flood(LinkStatePacket p) {
@@ -112,9 +83,24 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             debug.println(5, "Packet data: " + packet.costs.toString());
         } else {
             debug.println(4, "Received a Packet");
-            if (p.dest != nsap) {
-                // TODO: Djikstra?
 
+            if (p.dest == this.nsap) {
+                nic.trackArrivals(p.payload);
+            } else {
+                RoutedPacket routedPacket;
+                if (p instanceof RoutedPacket) {
+                    // Packet was already assigned a route
+                    routedPacket = (RoutedPacket) p;
+                } else {
+                    // Assign a route
+                    routedPacket = new RoutedPacket(p, paths.get(p.dest));
+                    routedPacket.route = paths.get(p.dest);
+                }
+                // At this point, we know the route, so send to the next node
+                int nextStop = routedPacket.route.get(0);
+                int linkIndex = nic.getOutgoingLinks().indexOf(nextStop);
+                routedPacket.route = routedPacket.route.subList(1, routedPacket.route.size()); // Chop off current node since it was visited
+                nic.sendOnLink(linkIndex, routedPacket);
             }
         }
     }
@@ -124,21 +110,17 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         ArrayList<Integer> neighbors = nic.getOutgoingLinks();
         for (int i = 0; i < neighbors.size(); i++) {
             int neighbor = neighbors.get(i);
+            // Send a ping to the neighbor (expecting a "pong" back)
             Packet pingPacket = new PingPacket(super.nsap, neighbor, 1);
-            LinkStatePacket linkStatePacket = new LinkStatePacket(super.nsap, neighbor, 1, super.neighborCosts);
             nic.sendOnLink(i, pingPacket); // Send out the ping packet
+
+            // Send link state to the neighbor (to flood across the graph)
+            LinkStatePacket linkStatePacket = new LinkStatePacket(super.nsap, neighbor, 1, super.neighborCosts);
             nic.sendOnLink(i, linkStatePacket); // Send out link state packet
         }
 
-        // TODO: Build the routing table based on the graph (Hashmap of costs, hashmap (Most likely will need to change this. to super.)
-        // of hashmap)
-        // Map<Integer, Map<Integer, Long>> routingTable;
-
-        // Debug: Print a node's graph
-
-        // TODO: Perform Djikstra's Algorithm for the routing table (Make function call)
-        // shortestPath(routingTable);
-
+        // Perform Djikstra's Algorithm to build a list of shortest paths using the routing table
+        findShortestPaths();
     }
 
 }

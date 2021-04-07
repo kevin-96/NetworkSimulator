@@ -79,7 +79,7 @@ public abstract class AbstractDynamicRouter extends Router {
                 // There is something to send out
                 process = true;
                 debug.println(3, "(AbstractDynamicRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
-                debug.println(8, "?????? " + ((Packet) toSend.data).dest);
+                // debug.println(8, "?????? " + ((Packet) toSend.data).dest);
 
                 Packet packet = new Packet(nsap, toSend.destination, DEFAULT_HOP_COUNT, toSend.data);
                 route(packet);
@@ -114,6 +114,8 @@ public abstract class AbstractDynamicRouter extends Router {
                     packet.hopCount--;
                     if (packet.hopCount > 0) {
                         route(packet);
+                    } else {
+                        debug.println(4, "Too many hops!");
                     }
                 } else {
                     debug.println(4, "Tried to route something that wasn't a packet");
