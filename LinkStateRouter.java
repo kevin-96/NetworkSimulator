@@ -6,6 +6,7 @@
  * Represents a router that uses a Link State Routing algorithm.
  ***************/
 
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -26,17 +27,63 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
+    private static class RoutingPaths {
+        private Map<Integer, Map<Integer, List<Integer>>> paths; // paths[0][6] => path from 0 - 6 
+
+        public RoutingPaths() {
+            paths = new HashMap<>();
+        }
+
+        public void put(int src, int dest, List<Integer> path) {
+            paths.putIfAbsent(src, new HashMap<>());
+            paths.get(src).put(dest, path);
+        }
+
+        public List<Integer> get(int src, int dest) {
+            try {
+                return paths.get(src).get(dest);
+            }
+            catch (Exception e) {
+                return null;
+            }
+        }
+
+        // public void calculate(int src, int dest, )
+
+    }
+
     Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
+    RoutingPaths paths; // paths[0][6] => path from 0 - 6 
 
     public LinkStateRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
         routingTable = new HashMap<>(); // Each router builds a routing table for the entire graph
+        paths = new RoutingPaths();
     }
 
     public static class Generator extends Router.Generator {
         public Router createRouter(int id, NetworkInterface nic) {
             return new LinkStateRouter(id, nic);
         }
+    }
+
+    private void calculateRoutingPaths() {
+        RoutingPaths paths = new RoutingPaths();
+        for (Integer src : this.routingTable.keySet()) {
+            for (Integer dest : this.routingTable.get(src).keySet()) {
+                if (!src.equals(dest)) {
+                    paths.put(src, dest, djikstra(src, dest));
+                }
+            }
+        }
+        this.paths = paths;
+    }
+    private List<Integer> djikstra(int src, int dest) {
+        List<Integer> path = new ArrayList<>();
+        
+        // TODO: calculate shortest path
+        
+        return path;
     }
 
     protected void flood(LinkStatePacket p) {
@@ -65,15 +112,15 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             debug.println(5, "Packet data: " + packet.costs.toString());
         } else {
             debug.println(4, "Received a Packet");
+            if (p.dest != nsap) {
+                // TODO: Djikstra?
 
+            }
         }
     }
 
     @Override
     protected void findCosts() {
-        // if (foundCosts) {
-        // return;
-        // }
         ArrayList<Integer> neighbors = nic.getOutgoingLinks();
         for (int i = 0; i < neighbors.size(); i++) {
             int neighbor = neighbors.get(i);
@@ -94,84 +141,4 @@ public class LinkStateRouter extends AbstractDynamicRouter {
 
     }
 
-    protected void saveDistance(PongPacket pong){}
-
-    // // TODO: (FINAL STEP) FIND THE SHORTEST PATH OF EACH NODE TO OTHER NODES!
-
-    // class ShortestPath {
-    // // A utility function to find the vertex with minimum distance value,
-    // // from the set of vertices not yet included in shortest path tree
-    // static final int V = 9;
-    // int minDistance(int dist[], Boolean sptSet[])
-    // {
-    // // Initialize min value
-    // int min = Integer.MAX_VALUE, min_index = -1;
-
-    // for (int v = 0; v < V; v++)
-    // if (sptSet[v] == false && dist[v] <= min) {
-    // min = dist[v];
-    // min_index = v;
-    // }
-
-    // return min_index;
-    // }
-
-    // // A utility function to print the constructed distance array
-    // void printSolution(int dist[], int n)
-    // {
-    // System.out.println("Vertex Distance from Source");
-    // for (int i = 0; i < V; i++)
-    // System.out.println(i + " tt " + dist[i]);
-    // }
-
-    // /** Route the given packet out.
-    // In our case, we go to all nodes except the originator
-    // **/
-
-    // // Function that implements Dijkstra's single source shortest path
-    // // algorithm for a graph represented using adjacency matrix
-    // // representation
-    // void dijkstra(int graph[][], int src)
-    // {
-    // int dist[] = new int[V]; // The output array. dist[i] will hold
-    // // the shortest distance from src to i
-
-    // // sptSet[i] will true if vertex i is included in shortest
-    // // path tree or shortest distance from src to i is finalized
-    // Boolean sptSet[] = new Boolean[V];
-
-    // // Initialize all distances as INFINITE and stpSet[] as false
-    // for (int i = 0; i < V; i++) {
-    // dist[i] = Integer.MAX_VALUE;
-    // sptSet[i] = false;
-    // }
-
-    // // Distance of source vertex from itself is always 0
-    // dist[src] = 0;
-
-    // // Find shortest path for all vertices
-    // for (int count = 0; count < V - 1; count++) {
-    // // Pick the minimum distance vertex from the set of vertices
-    // // not yet processed. u is always equal to src in first
-    // // iteration.
-    // int u = minDistance(dist, sptSet);
-
-    // // Mark the picked vertex as processed
-    // sptSet[u] = true;
-
-    // // Update dist value of the adjacent vertices of the
-    // // picked vertex.
-    // for (int v = 0; v < V; v++)
-
-    // // Update dist[v] only if is not in sptSet, there is an
-    // // edge from u to v, and total weight of path from src to
-    // // v through u is smaller than current value of dist[v]
-    // if (!sptSet[v] && graph[u][v] != 0 &&
-    // dist[u] != Integer.MAX_VALUE && dist[u] + graph[u][v] < dist[v])
-    // dist[v] = dist[u] + graph[u][v];
-    // }
-
-    // // print the constructed distance array
-    // printSolution(dist, V);
-    // }
 }

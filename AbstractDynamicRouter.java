@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.HashMap;
 
 public abstract class AbstractDynamicRouter extends Router {
+    protected static final int DEFAULT_HOP_COUNT = 5;
+
     public static class Packet {
         // This is how we will store our Packet Header information
         int source;
@@ -16,9 +18,14 @@ public abstract class AbstractDynamicRouter extends Router {
         Object payload;  // The payload!
         
         public Packet(int source, int dest, int hopCount) {
+            this(source, dest, hopCount, null);
+        }
+
+        public Packet(int source, int dest, int hopCount, Object payload) {
             this.source = source;
             this.dest = dest;
             this.hopCount = hopCount;
+            this.payload = payload;
         }
 
     }
@@ -43,6 +50,8 @@ public abstract class AbstractDynamicRouter extends Router {
         }
     }
 
+    
+
     Debug debug;
     Map<Integer, Long> neighborCosts; // Stores the costs of each router's neighbors (Between neighbors)
 
@@ -54,11 +63,9 @@ public abstract class AbstractDynamicRouter extends Router {
 
     protected abstract void route(Packet p);
     protected abstract void findCosts();
-    protected abstract void saveDistance(PongPacket pong);
 
     int costDelay = 10000;
     public void run() {
-        // findCosts();
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
             if (System.currentTimeMillis() > nextFindCost) {
@@ -72,6 +79,10 @@ public abstract class AbstractDynamicRouter extends Router {
                 // There is something to send out
                 process = true;
                 debug.println(3, "(AbstractDynamicRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
+                debug.println(8, "?????? " + ((Packet) toSend.data).dest);
+
+                Packet packet = new Packet(nsap, toSend.destination, DEFAULT_HOP_COUNT, toSend.data);
+                route(packet);
             }
 
             NetworkInterface.ReceivePair toRoute = nic.getReceived();
@@ -95,12 +106,15 @@ public abstract class AbstractDynamicRouter extends Router {
                     PongPacket packet = (PongPacket) toRoute.data;
                     int source = packet.source; // Source of the packet is the destination of the ping packet
                     long cost = packet.pongTime;
-                    saveDistance(packet);
                     neighborCosts.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
                 } else if (toRoute.data instanceof Packet) {
                     // Routing something other than ping/pong is dependent on which algorithm is used
-                    route((Packet) toRoute.data);
+                    Packet packet = (Packet) toRoute.data;
+                    packet.hopCount--;
+                    if (packet.hopCount > 0) {
+                        route(packet);
+                    }
                 } else {
                     debug.println(4, "Tried to route something that wasn't a packet");
                 }

@@ -49,12 +49,4 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
         }
     }
 
-    @Override
-    protected void saveDistance(PongPacket pong) {
-        long time=pong.pongTime/2;
-        super.neighborCosts.put(pong.source,time);
-        debug.println(0,"Time: " + time);
-//super.neighborTables
-    }
-
 }
