@@ -51,10 +51,32 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
+    // Distance/Link Pair Class (DL Pair)
+    public static class DLPair {
+        long distance;
+        int link;
+
+        public DLPair (long distance, int link) {
+            this.distance = distance;
+            this.link = link;
+        }
+    }
+
     // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
     public void findShortestPaths() {        
         // TODO: calculate shortest paths
-        
+        Map<Integer, DLPair> workingTable = new HashMap<>; // All the nodes with their distances
+        Map<Integer, DLPair> finalTable = new HashMap<>;
+        workingTable.put(this.nsap,new DLPair(0,-1));
+        while (!workingTable.isEmpty) {
+            // 1. go through table find the key (k) with the smallest distance (d). Let l be the link it uses
+            // 1a. remove the key from the workingTable and move it to the finalTable
+            // 2. grab the links for that key (links are stored in the routingTable)
+            // 3. for each link, get the distance to that link, and add it to d
+            // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
+        }
+         // final table is the routing table we want to use
+         // in the route function,
     }
 
     protected void flood(LinkStatePacket p) {
