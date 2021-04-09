@@ -4,13 +4,12 @@
  * Modified by: Joey Germain, Phillip Nam, Kevin Sangurima
  * An abstract class that represents a dynamic router
  ***************/
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
-import java.util.HashSet;
 
 public abstract class AbstractDynamicRouter extends Router {
+    protected static final int DEFAULT_HOP_COUNT = 5;
+
     public static class Packet {
         // This is how we will store our Packet Header information
         int source;
@@ -19,9 +18,14 @@ public abstract class AbstractDynamicRouter extends Router {
         Object payload;  // The payload!
         
         public Packet(int source, int dest, int hopCount) {
+            this(source, dest, hopCount, null);
+        }
+
+        public Packet(int source, int dest, int hopCount, Object payload) {
             this.source = source;
             this.dest = dest;
             this.hopCount = hopCount;
+            this.payload = payload;
         }
 
     }
@@ -45,55 +49,23 @@ public abstract class AbstractDynamicRouter extends Router {
             this.pongTime = System.currentTimeMillis() - pingTime;
         }
     }
-    
-    public static class LinkStatePacket extends Packet {
-        Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
-        Set<Integer> nodesVisited;
 
-        public LinkStatePacket(int source, int dest, int hopCount, Map<Integer,Long> costs) {
-            // The constructor automatically sets the payload to be the delta time
-            super(source, dest, hopCount);
-            this.costs = costs;
-            this.nodesVisited = new HashSet<>(); // Keep track of the nodes that have been visited
-        }
-    }
+    
 
     Debug debug;
     Map<Integer, Long> neighborCosts; // Stores the costs of each router's neighbors (Between neighbors)
-    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
 
     public AbstractDynamicRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
         debug = Debug.getInstance();  // For debugging!
         neighborCosts = new HashMap<>(); // Each router knows the costs of its neighbors
-        routingTable = new HashMap<>(); // Each router builds a routing table for the entire graph
     }
 
     protected abstract void route(Packet p);
-
-    protected void flood(LinkStatePacket p) {
-        ArrayList<Integer> outLinks = nic.getOutgoingLinks();
-        int size = outLinks.size();
-        for (int i = 0; i < size; i++) {
-            if (!p.nodesVisited.contains(outLinks.get(i))) {
-                // This packet hasn't reached this node yet - so send it along!
-                nic.sendOnLink(i, p);
-            }
-        }
-        if (this.nsap == 10) {
-            System.out.println(routingTable);
-        }
-    }
-
-    // TODO: Remove the "foundCosts" stuff from the code. It makes sure findCosts only runs once, which we're just doing for debugging
-    protected boolean foundCosts = false;
-
     protected abstract void findCosts();
-    protected abstract void saveDistance(PongPacket pong);
 
     int costDelay = 10000;
     public void run() {
-        // findCosts();
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
             if (System.currentTimeMillis() > nextFindCost) {
@@ -107,6 +79,10 @@ public abstract class AbstractDynamicRouter extends Router {
                 // There is something to send out
                 process = true;
                 debug.println(3, "(AbstractDynamicRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
+                // debug.println(8, "?????? " + ((Packet) toSend.data).dest);
+
+                Packet packet = new Packet(nsap, toSend.destination, DEFAULT_HOP_COUNT, toSend.data);
+                route(packet);
             }
 
             NetworkInterface.ReceivePair toRoute = nic.getReceived();
@@ -130,25 +106,19 @@ public abstract class AbstractDynamicRouter extends Router {
                     PongPacket packet = (PongPacket) toRoute.data;
                     int source = packet.source; // Source of the packet is the destination of the ping packet
                     long cost = packet.pongTime;
-                    saveDistance(packet);
                     neighborCosts.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
-                } else if (toRoute.data instanceof LinkStatePacket) {
-                    debug.println(4, "Received a LinkStatePacket");
-                    LinkStatePacket packet = (LinkStatePacket) toRoute.data;
-                    packet.nodesVisited.add(this.nsap);
-                    // Get information from packet - new packet?
-                    this.routingTable.put(packet.source, packet.costs);
-                    // Continue flood routing the packet
-                    this.flood(packet);
-
-                    debug.println(5, "Packet source: " + packet.source);
-                    debug.println(5, "Packet data: " + packet.costs.toString());
                 } else if (toRoute.data instanceof Packet) {
-                    debug.println(4, "Received a Packet");
-                    route((Packet) toRoute.data);
+                    // Routing something other than ping/pong is dependent on which algorithm is used
+                    Packet packet = (Packet) toRoute.data;
+                    packet.hopCount--;
+                    if (packet.hopCount > 0) {
+                        route(packet);
+                    } else {
+                        debug.println(4, "Too many hops!");
+                    }
                 } else {
-                    debug.println(4, "Packet is not of type: Packet, PingPacket, PongPacket or LinkStatePacket");
+                    debug.println(4, "Tried to route something that wasn't a packet");
                 }
             }
 
