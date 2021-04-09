@@ -36,13 +36,13 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
     }
 
-    Map<Integer, Map<Integer, Long>> routingTable; // Stores every node in the network's neighbor costs 
-    Map<Integer, List<Integer>> paths; // Maps the nsap of a node to the path from this router to that node. Ex: paths.get(6) <- path from this to 6 
+    Map<Integer, Map<Integer, Long>> linkStateTable; // Stores <nsap, neighborCosts> -- every node in the network's neighbor costs 
+    Map<Integer, Integer> routingTable; // Stores <dest, nextStep> -- if going from this to dest, route to nextStep
 
     public LinkStateRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
-        routingTable = new HashMap<>(); // Each router builds a routing table for the entire graph
-        paths = new HashMap<>();
+        linkStateTable = new HashMap<>(); // Each router builds a table that shows link costs for the entire network
+        routingTable = new HashMap<>();
     }
 
     public static class Generator extends Router.Generator {
@@ -65,18 +65,51 @@ public class LinkStateRouter extends AbstractDynamicRouter {
     // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
     public void findShortestPaths() {        
         // TODO: calculate shortest paths
-        Map<Integer, DLPair> workingTable = new HashMap<>; // All the nodes with their distances
-        Map<Integer, DLPair> finalTable = new HashMap<>;
+        Map<Integer, DLPair> workingTable = new HashMap<>(); // All the nodes with their distances
+        Map<Integer, DLPair> finalTable = new HashMap<>();
         workingTable.put(this.nsap,new DLPair(0,-1));
-        while (!workingTable.isEmpty) {
+        while (!workingTable.isEmpty()) {
             // 1. go through table find the key (k) with the smallest distance (d). Let l be the link it uses
+            Map.Entry<Integer, DLPair>  min = null;
+            for (Map.Entry<Integer, DLPair> entry : workingTable.entrySet()) {
+                DLPair info = entry.getValue();
+                if (min == null || info.distance < min.getValue().distance) {
+                    min = entry;
+                }
+            }
+
+            // Store info about the selected node
+            int nsap = min.getKey();
+            DLPair info = min.getValue();
+            
             // 1a. remove the key from the workingTable and move it to the finalTable
-            // 2. grab the links for that key (links are stored in the routingTable)
+            finalTable.put(nsap, info);
+            workingTable.remove(nsap);
+            
+            // 2. grab the links for that key (links are stored in the routingTable//linkStateTable) // ASK PHIL ABOUT ROUTINGTABLE
+            Set<Integer> links = linkStateTable.get(nsap).keySet();
+        
             // 3. for each link, get the distance to that link, and add it to d
-            // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
+            for (Integer link : links) {
+                long distance = linkStateTable.get(nsap).get(link) + info.distance;
+                
+                // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
+                // Integer previousDistance = workingTable.get(...);
+                // if (previousDistance == null || distance < previousDistance) {
+                //     // set new distance
+                //     workingTable.set(...);
+                // }
+            
+            }
+
+            
         }
-         // final table is the routing table we want to use
-         // in the route function,
+         // final table is the routing table we want to use in the route function,
+         this.routingTable.clear();
+         for (Map.Entry<Integer, DLPair> entry : finalTable.entrySet()) {
+            this.routingTable.put(entry.getKey(), entry.getValue().link);
+        }
+
     }
 
     protected void flood(LinkStatePacket p) {
@@ -97,7 +130,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             LinkStatePacket packet = (LinkStatePacket) p;
             packet.nodesVisited.add(this.nsap);
             // Get information from packet - new packet?
-            this.routingTable.put(packet.source, packet.costs);
+            this.linkStateTable.put(packet.source, packet.costs);
             // Continue flood routing the packet
             this.flood(packet);
 
@@ -109,20 +142,20 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             if (p.dest == this.nsap) {
                 nic.trackArrivals(p.payload);
             } else {
-                RoutedPacket routedPacket;
-                if (p instanceof RoutedPacket) {
-                    // Packet was already assigned a route
-                    routedPacket = (RoutedPacket) p;
-                } else {
-                    // Assign a route
-                    routedPacket = new RoutedPacket(p, paths.get(p.dest));
-                    routedPacket.route = paths.get(p.dest);
-                }
-                // At this point, we know the route, so send to the next node
-                int nextStop = routedPacket.route.get(0);
-                int linkIndex = nic.getOutgoingLinks().indexOf(nextStop);
-                routedPacket.route = routedPacket.route.subList(1, routedPacket.route.size()); // Chop off current node since it was visited
-                nic.sendOnLink(linkIndex, routedPacket);
+                // RoutedPacket routedPacket;
+                // if (p instanceof RoutedPacket) {
+                //     // Packet was already assigned a route
+                //     routedPacket = (RoutedPacket) p;
+                // } else {
+                //     // Assign a route
+                //     routedPacket = new RoutedPacket(p, routingTable.get(p.dest));
+                //     routedPacket.route = routingTable.get(p.dest);
+                // }
+                // // At this point, we know the route, so send to the next node
+                // int nextStop = routedPacket.route.get(0);
+                // int linkIndex = nic.getOutgoingLinks().indexOf(nextStop);
+                // routedPacket.route = routedPacket.route.subList(1, routedPacket.route.size()); // Chop off current node since it was visited
+                // nic.sendOnLink(linkIndex, routedPacket);
             }
         }
     }
