@@ -16,6 +16,9 @@ public abstract class AbstractDynamicRouter extends Router {
         int dest;
         int hopCount;  // Maximum hops to get there
         Object payload;  // The payload!
+        int sourceVD;
+        int destVD;
+        Map<Integer, Long> costs;
         
         public Packet(int source, int dest, int hopCount) {
             this(source, dest, hopCount, null);
@@ -26,6 +29,13 @@ public abstract class AbstractDynamicRouter extends Router {
             this.dest = dest;
             this.hopCount = hopCount;
             this.payload = payload;
+        }
+
+		public Packet(int sourceVD, int destVD, Map<Integer, Long> costs) {
+            this.sourceVD = sourceVD;
+            this.destVD = destVD;
+            this.costs = costs;
+          
         }
 
     }

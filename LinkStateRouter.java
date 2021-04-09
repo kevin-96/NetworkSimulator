@@ -104,12 +104,11 @@ public class LinkStateRouter extends AbstractDynamicRouter {
 
             
         }
-         // final table is the routing table we want to use in the route function,
+         // final table is the routing table we want to use in the route function
          this.routingTable.clear();
          for (Map.Entry<Integer, DLPair> entry : finalTable.entrySet()) {
             this.routingTable.put(entry.getKey(), entry.getValue().link);
         }
-
     }
 
     protected void flood(LinkStatePacket p) {
@@ -175,7 +174,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
 
         // Perform Djikstra's Algorithm to build a list of shortest paths using the routing table
-        findShortestPaths();
+        // findShortestPaths();
     }
 
 }
