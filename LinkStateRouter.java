@@ -63,7 +63,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
     }
 
     // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
-    public void findShortestPaths() {        
+   /* public void findShortestPaths() {        
         // TODO: calculate shortest paths
         Map<Integer, DLPair> workingTable = new HashMap<>; // All the nodes with their distances
         Map<Integer, DLPair> finalTable = new HashMap<>;
@@ -77,7 +77,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
          // final table is the routing table we want to use
          // in the route function,
-    }
+    }*/
 
     protected void flood(LinkStatePacket p) {
         ArrayList<Integer> outLinks = nic.getOutgoingLinks();
@@ -142,7 +142,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
         }
 
         // Perform Djikstra's Algorithm to build a list of shortest paths using the routing table
-        findShortestPaths();
+        //findShortestPaths();
     }
 
 }

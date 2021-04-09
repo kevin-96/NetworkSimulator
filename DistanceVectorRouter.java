@@ -32,6 +32,15 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
         public Router createRouter(int id, NetworkInterface nic) {
             return new DistanceVectorRouter(id, nic);
         }
+    } 
+
+    public static class DistanceVectorStatePacket extends Packet {
+        Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
+        public DistanceVectorStatePacket(int source, int dest,Map<Integer,Long> costs) {
+            // The constructor automatically sets the payload to be the delta time
+            super(source, dest,costs);
+            this.costs = costs;
+        }
     }
 
     @Override
@@ -47,6 +56,35 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
             Packet pingPacket = new PingPacket(super.nsap, neighbor, 1);
             nic.sendOnLink(i, pingPacket);
         }
+    }
+
+    protected void findShortestPaths() {
+        int source=super.nsap;
+        Map<Integer, Long> neighborCosts = super.neighborCosts;// RouterId=Node, Distance=Edge
+        int ncs=neighborCosts.size();
+        long distances[] = new long[ncs];
+        for (int i = 0; i < distances.length; i++) {
+            distances[i]=Long.MAX_VALUE;
+        }
+        distances[source]=0;
+        ArrayList<Integer> links=nic.getOutgoingLinks();
+        for(int j=1;j<ncs;j++)
+        {
+            for(int k=0;j<links.size();k++)
+            {
+                int srcLink=links.get(k);
+                int desLink=(int)neighborCosts.keySet().toArray()[k];
+                long linkDis=neighborCosts.get(k);
+                if(distances[srcLink]!= Long.MAX_VALUE && distances[srcLink] + linkDis < distances[desLink])
+                {
+                    distances[desLink]=distances[srcLink] + linkDis;
+                }
+            }
+
+              
+        }   
+
+//  Print when packets arrives and the cost
     }
 
 }
