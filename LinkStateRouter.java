@@ -1,8 +1,7 @@
 
 /***************
  * LinkStateRouter
- * Author: Christian Duncan
- * Modified by: 
+ * Authors: Kevin Sangurima, Joey Germain, Phillip Nam
  * Represents a router that uses a Link State Routing algorithm.
  ***************/
 
@@ -72,8 +71,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             // 1. go through table find the key (k) with the smallest distance (d). Let l be the link it uses
             Map.Entry<Integer, DLPair>  min = null;
             for (Map.Entry<Integer, DLPair> entry : workingTable.entrySet()) {
-                DLPair info = entry.getValue();
-                if (min == null || info.distance < min.getValue().distance) {
+                if (min == null || entry.getValue().distance < min.getValue().distance) {
                     min = entry;
                 }
             }
@@ -88,23 +86,27 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             
             // 2. grab the links for that key (links are stored in the routingTable//linkStateTable) // ASK PHIL ABOUT ROUTINGTABLE
             Set<Integer> links = linkStateTable.get(nsap).keySet();
-        
+
+            //Relaxation Process
             // 3. for each link, get the distance to that link, and add it to d
             for (Integer link : links) {
                 long distance = linkStateTable.get(nsap).get(link) + info.distance;
                 
                 // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
-                // Integer previousDistance = workingTable.get(...);
-                // if (previousDistance == null || distance < previousDistance) {
-                //     // set new distance
-                //     workingTable.set(...);
-                // }
+                DLPair currentValues = finalTable.get(nsap);
+                if (currentValues == null) {
+                    finalTable.put(nsap, new DLPair(distance, link));
+                } else if (distance < currentValues.distance) {
+                    // set new distance
+                    currentValues.distance = distance;
+                    currentValues.link = link;
+                }
             
             }
 
             
         }
-         // final table is the routing table we want to use in the route function
+         // finalTable is the routing table we want to use in the route function
          this.routingTable.clear();
          for (Map.Entry<Integer, DLPair> entry : finalTable.entrySet()) {
             this.routingTable.put(entry.getKey(), entry.getValue().link);
