@@ -79,7 +79,8 @@ public abstract class AbstractDynamicRouter extends Router {
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
             if (System.currentTimeMillis() > nextFindCost) {
-                 nextFindCost = System.currentTimeMillis() + costDelay;
+                System.out.println("finding costs");
+                nextFindCost = System.currentTimeMillis() + costDelay;
                 findCosts();
             }
             // See if there is anything to process
@@ -122,7 +123,7 @@ public abstract class AbstractDynamicRouter extends Router {
                     // Routing something other than ping/pong is dependent on which algorithm is used
                     Packet packet = (Packet) toRoute.data;
                     packet.hopCount--;
-                    if (packet.hopCount > 0) {
+                    if (packet.hopCount >= 0) {
                         route(packet);
                     } else {
                         debug.println(4, "Too many hops!");
