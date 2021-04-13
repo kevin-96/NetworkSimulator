@@ -5,7 +5,6 @@
  * Represents a router that uses a Link State Routing algorithm.
  ***************/
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -14,15 +13,6 @@ import java.util.HashSet;
 
 public class LinkStateRouter extends AbstractDynamicRouter {
 
-    public static class RoutedPacket extends Packet  {
-        public List<Integer> route;
-
-        public RoutedPacket (Packet packet, List<Integer> route) {
-            super(packet.source, packet.dest, packet.hopCount, packet.payload);
-            this.route = route;
-        }
-    }
-    
     public static class LinkStatePacket extends Packet {
         Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
         Set<Integer> nodesVisited;
@@ -63,7 +53,6 @@ public class LinkStateRouter extends AbstractDynamicRouter {
 
     // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
     public void findShortestPaths() {        
-        // TODO: calculate shortest paths
         Map<Integer, DLPair> workingTable = new HashMap<>(); // All the nodes with their distances
         Map<Integer, DLPair> finalTable = new HashMap<>();
         workingTable.put(this.nsap, new DLPair(0,-1));
@@ -96,6 +85,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
                 }
                 return;
             }
+
             //Relaxation Process
             // 3. for each link, get the distance to that link, and add it to d
             for (Integer link : links) {
@@ -104,16 +94,13 @@ public class LinkStateRouter extends AbstractDynamicRouter {
                 // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
                 DLPair currentValues = finalTable.get(nsap);
                 if (currentValues == null) {
-                    finalTable.put(nsap, new DLPair(distance, link));
+                    finalTable.put(nsap, new DLPair(distance, link)); // TODO: replace with workingTable(?) and replace distance with small distance and the new link
                 } else if (distance < currentValues.distance) {
                     // set new distance
                     currentValues.distance = distance;
                     currentValues.link = link;
                 }
-            
             }
-
-            
         }
          // finalTable is the routing table we want to use in the route function
          this.routingTable.clear();
