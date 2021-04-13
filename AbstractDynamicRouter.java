@@ -60,6 +60,20 @@ public abstract class AbstractDynamicRouter extends Router {
         }
     }
 
+    public static class TablePacket extends Packet {
+        Map<Integer,Long> tableDistances;
+    
+
+        public TablePacket(int source, Map<Integer,Long> tableDistances) {
+            // The constructor automatically sets the payload to be the current time
+            super(source, -1, 1);
+            this.tableDistances = tableDistances;
+        
+        }
+    }
+
+
+
     
 
     Debug debug;
@@ -79,7 +93,7 @@ public abstract class AbstractDynamicRouter extends Router {
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
             if (System.currentTimeMillis() > nextFindCost) {
-                System.out.println("finding costs");
+                //System.out.println("finding costs");
                 nextFindCost = System.currentTimeMillis() + costDelay;
                 findCosts();
             }
@@ -119,6 +133,9 @@ public abstract class AbstractDynamicRouter extends Router {
                     long cost = packet.pongTime;
                     neighborCosts.put(source, cost);
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
+                } else if(toRoute.data instanceof TablePacket){
+                    
+
                 } else if (toRoute.data instanceof Packet) {
                     // Routing something other than ping/pong is dependent on which algorithm is used
                     Packet packet = (Packet) toRoute.data;

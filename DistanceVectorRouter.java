@@ -45,19 +45,31 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
     }
 
     public static class TablePacket extends Packet {
-        long pingTime;
+        Map<Integer,Long> tableDistances;
+    
 
-        public TablePacket(int source, int dest, int hopCount) {
+        public TablePacket(int source, Map<Integer,Long> tableDistances) {
             // The constructor automatically sets the payload to be the current time
-            super(source, dest, hopCount);
-            this.pingTime = System.currentTimeMillis();
+            super(source, -1, 1);
+            this.tableDistances = tableDistances;
+        
         }
     }
 
     @Override
     protected void route(Packet p) {
-        Packet packet = p;
+       // Packet packet = p;
         int destination = p.dest;
+        int source=p.source;
+        if(p instanceof TablePacket) {
+            int sourceIndex = nic.getOutgoingLinks().indexOf(source);
+            neighborTables.set(sourceIndex,((TablePacket)p).tableDistances);
+        }
+        else{
+            //Send packet along 
+        }
+        
+
         // int nextNode = routingTableIndex.get(destination);
         // nic.transmit(nextNode, packet);
     }
@@ -71,52 +83,98 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
             nic.sendOnLink(i, pingPacket);
         }
         debug.println(0, "Step 0");
+        //findShortestPaths(super.neighborCosts);
+        buildTableIndex();
 
-        //findShortestPaths();
+        // findShortestPaths();
     }
 
-    protected void sendTables(){
+    protected void sendTables() {
+
+    }
+
+    protected void buildTableIndex() {
+        //create a temp empty table index and a empty table distance
+
+        Map<Integer,Integer> tempTableIndex = new HashMap<>(); //NSAP to index, use for routing
+        Map<Integer, Long> tempTableDistances = new HashMap<>(); //Table with distances to be sent to other nodes
         
+        //Insert ur own node with distance 0 and index -1 
+        tempTableIndex.put(this.nsap, -1);
+        tempTableDistances.put(this.nsap,0L);
+         
+        //go through all neighbor tables to update table index and table dis 
+        if(this.nsap == 14){
+         for (int i = 0; i< neighborTables.size(); i++){
+            int nsap = nic.getOutgoingLinks().get(i);
+            System.out.print("Source:" + nsap + " :");
+            Map<Integer,Long> table = neighborTables.get(i);
+            if (table != null){
+                for (Integer dest: table.keySet()) {
+                    Long distance = table.get(dest);
+                    System.out.print(dest + "," + distance + " ");
+                }
+            }
+            System.out.println();
+         }
+        }
+        
+        //transmit tableDistance to all neighbors
+        ArrayList<Integer> neighbors = nic.getOutgoingLinks();
+
+        for (int i = 0; i < neighbors.size(); i++) {
+            TablePacket p = new TablePacket(this.nsap, tempTableDistances);
+            nic.sendOnLink(i, p);
+        }
+    
+        //Make temp tableIndex the routingTableIndex
+        this.routingTableIndex = tempTableIndex;    
     }
 
     protected void findShortestPaths(Map<Integer, Long> neighborCosts) {
 
         // for (int o = 0; o < 100; o++) {
-        //     debug.println(0, "NeighborCosts[" + o + "]=" + neighborCosts.get(o));
+        // debug.println(0, "NeighborCosts[" + o + "]=" + neighborCosts.get(o));
         // }
-       // neighborCosts.keySet().toArray();
-        for(Object src: neighborCosts.keySet().toArray())
-        {
-            debug.println(0, "NC.get=" + neighborCosts.get(src));
+        for (Object src : neighborCosts.keySet().toArray()) {
+            debug.println(0, "NC.get=" + neighborCosts.get(src) + " From Source: " + (int)src);
         }
-        /*
-         * debug.println(0, "Step 0.5");// + "Link Distance" + linkDis); int source =
-         * super.nsap; Map<Integer, Long> neighborCosts = super.neighborCosts;//
-         * RouterId=Node, Distance=Edge
-         * 
-         * int ncs = neighborCosts.size(); this.routingTable.put(source, (long) 0);
-         * ArrayList<Integer> links = nic.getOutgoingLinks(); for (int o = 0; o < ncs;
-         * o++) { debug.println(0, "NeighborCosts[" + o + "]=" + neighborCosts.get(o));
-         * } debug.println(0, "NeighborCostsSize=" + ncs);// + "Link Distance" +
-         * linkDis); debug.println(0, "Link Size=" + links.size()); for (int j = 1; j <
-         * ncs; j++) { debug.println(0, "Step 2"); for (int k = 0; k < links.size();
-         * k++) {
-         * 
-         * int srcLink = links.get(k); int desLink = (int)
-         * neighborCosts.keySet().toArray()[k]; debug.println(0, "Des Link:" + desLink);
-         * long linkDis = neighborCosts.get(k); debug.println(0,
-         * "DistanceVectorrouter: Source Link:" + srcLink + "Destination Link:" +
-         * desLink + "Link Distance:" + linkDis); if (this.routingTable.get(srcLink) !=
-         * Long.MAX_VALUE && this.routingTable.get(srcLink) + linkDis <
-         * this.routingTable.get(desLink)) { debug.println(0, "Step 4");
-         * this.routingTable.put(desLink, this.routingTable.get(srcLink) + linkDis);
-         * this.routingTableIndex.put(desLink, srcLink); } else { debug.println(0,
-         * "RoutingTable.get(srcLink)=" + this.routingTable.get(srcLink)); } }
-         * 
-         * }
-         */
+        for(int i=0;i<nic.getOutgoingLinks().size();i++)
+        {
+            debug.println(0, "getOutGoingLinks[i]=" + nic.getOutgoingLinks().get(i));
+        }
+
+        // debug.println(0, "Step 0.5");// + "Link Distance" + linkDis);
+        // int source = super.nsap;
+        // int ncs = neighborCosts.size();
+        // this.routingTable.put(source, (long) 0);
+        // ArrayList<Integer> links = nic.getOutgoingLinks();
+        // debug.println(0, "NeighborCostsSize=" + ncs);// + "Link Distance" + linkDis);
+        // debug.println(0, "Link Size=" + links.size());
+        // for (int j = 1; j < ncs; j++) {
+        //     for (int k = 0; k < links.size(); k++) {
+        //         int srcLink = links.get(k);
+        //         int desLink = (int) neighborCosts.keySet().toArray()[k];
+        //         debug.println(0, "Des Link:" + desLink);
+        //         long linkDis = neighborCosts.get(k);
+        //         debug.println(0, "DistanceVectorrouter: Source Link:" + srcLink + "Destination Link:" + desLink
+        //                 + "Link Distance:" + linkDis);
+        //         if (this.routingTable.get(srcLink) != Long.MAX_VALUE
+        //                 && this.routingTable.get(srcLink) + linkDis < this.routingTable.get(desLink)) {
+        //             debug.println(0, "Step 4");
+        //             this.routingTable.put(desLink, this.routingTable.get(srcLink) + linkDis);
+        //             this.routingTableIndex.put(desLink, srcLink);
+        //         } else {
+        //             debug.println(0, "RoutingTable.get(srcLink)=" + this.routingTable.get(srcLink));
+        //         }
+        //     }
+
+
+      //  }
 
         // Print when packets arrives and the cost
+        
     }
+    
 
 }
