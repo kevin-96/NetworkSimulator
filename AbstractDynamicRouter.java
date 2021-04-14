@@ -1,7 +1,7 @@
+
 /***************
  * Abstract Dynamic Router
- * Author: Christian Duncan
- * Modified by: Joey Germain, Phillip Nam, Kevin Sangurima
+ * Author: Joey Germain, Phillip Nam, Kevin Sangurima, Brian Carabllo, James Jacobson, Ryan Clark
  * An abstract class that represents a dynamic router
  ***************/
 import java.util.Map;
@@ -14,12 +14,12 @@ public abstract class AbstractDynamicRouter extends Router {
         // This is how we will store our Packet Header information
         int source;
         int dest;
-        int hopCount;  // Maximum hops to get there
-        Object payload;  // The payload!
+        int hopCount; // Maximum hops to get there
+        Object payload; // The payload!
         int sourceVD;
         int destVD;
         Map<Integer, Long> costs;
-        
+
         public Packet(int source, int dest, int hopCount) {
             this(source, dest, hopCount, null);
         }
@@ -31,13 +31,12 @@ public abstract class AbstractDynamicRouter extends Router {
             this.payload = payload;
         }
 
-		public Packet(int sourceVD, int destVD, Map<Integer, Long> costs) {
+        public Packet(int sourceVD, int destVD, Map<Integer, Long> costs) {
             this.sourceVD = sourceVD;
             this.destVD = destVD;
             this.costs = costs;
-          
-        }
 
+        }
     }
 
     public static class PingPacket extends Packet {
@@ -60,38 +59,36 @@ public abstract class AbstractDynamicRouter extends Router {
         }
     }
 
+    // Packet class that contains the table distances
     public static class TablePacket extends Packet {
-        Map<Integer,Long> tableDistances;
-    
+        Map<Integer, Long> tableDistances;
 
-        public TablePacket(int source, Map<Integer,Long> tableDistances) {
+        public TablePacket(int source, Map<Integer, Long> tableDistances) {
             // The constructor automatically sets the payload to be the current time
             super(source, -1, 1);
             this.tableDistances = tableDistances;
-        
         }
     }
 
-
-
-    
-
-    Debug debug;
+    Debug debug; // For debugging
     Map<Integer, Long> neighborCosts; // Stores the costs of each router's neighbors (Between neighbors)
 
     public AbstractDynamicRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
-        debug = Debug.getInstance();  // For debugging!
+        debug = Debug.getInstance(); // For debugging!
         neighborCosts = new HashMap<>(); // Each router knows the costs of its neighbors
     }
 
     protected abstract void route(Packet p);
     protected abstract void findCosts();
 
+    // Time in ms in between finding costs/shortest paths again
     int costDelay = 10000;
+
     public void run() {
-        long nextFindCost = System.currentTimeMillis() + 1000;
+        long nextFindCost = System.currentTimeMillis() + 1000; // Initially it will wait 1 sec before finging costs
         while (true) {
+            // Piece of code in charge of running findCost() every costDelay mseconds
             if (System.currentTimeMillis() > nextFindCost) {
                 // System.out.println("finding costs");
                 nextFindCost = System.currentTimeMillis() + costDelay;
@@ -103,9 +100,9 @@ public abstract class AbstractDynamicRouter extends Router {
             if (toSend != null) {
                 // There is something to send out
                 process = true;
-                debug.println(3, "(AbstractDynamicRouter.run): I am being asked to transmit: " + toSend.data + " to the destination: " + toSend.destination);
-                // debug.println(8, "?????? " + ((Packet) toSend.data).dest);
-
+                debug.println(3, "(AbstractDynamicRouter.run): I am being asked to transmit: " + toSend.data
+                        + " to the destination: " + toSend.destination);
+                // Create new packet and routes it
                 Packet packet = new Packet(nsap, toSend.destination, DEFAULT_HOP_COUNT, toSend.data);
                 route(packet);
             }
@@ -114,7 +111,8 @@ public abstract class AbstractDynamicRouter extends Router {
             if (toRoute != null) {
                 // There is something to route through - or it might have arrived at destination
                 process = true;
-                debug.println(3, "(AbstractDynamicRouter.run): I received: " + toRoute.data + " from source: " + toRoute.originator);
+                debug.println(3, "(AbstractDynamicRouter.run): I received: " + toRoute.data + " from source: "
+                        + toRoute.originator);
 
                 if (toRoute.data instanceof PingPacket) {
                     debug.println(4, "Received a PingPacket");
@@ -123,7 +121,6 @@ public abstract class AbstractDynamicRouter extends Router {
                     int source = packet.source;
                     long pingTime = packet.pingTime;
                     PongPacket pong = new PongPacket(this.nsap, source, 1, pingTime);
-//                    nic.transmit(source, pong);
                     nic.sendOnLink(nic.getOutgoingLinks().indexOf(source), pong);
                 } else if (toRoute.data instanceof PongPacket) {
                     debug.println(4, "Received a PongPacket");
@@ -131,14 +128,16 @@ public abstract class AbstractDynamicRouter extends Router {
                     PongPacket packet = (PongPacket) toRoute.data;
                     int source = packet.source; // Source of the packet is the destination of the ping packet
                     long cost = packet.pongTime;
-                    neighborCosts.put(source, cost);
+                    neighborCosts.put(source, cost); // Stores the cost/link in the neighborCosts map
+                    // adds this step to the debug console
                     debug.println(5, "Cost(" + this.nsap + ", " + source + ") = " + cost);
-                } else if(toRoute.data instanceof TablePacket){
-                    
+                } else if (toRoute.data instanceof TablePacket) {
 
                 } else if (toRoute.data instanceof Packet) {
-                    // Routing something other than ping/pong is dependent on which algorithm is used
+                    // Routing something other than ping/pong is dependent on which algorithm is
+                    // used
                     Packet packet = (Packet) toRoute.data;
+                    // Reduce the hop count by one
                     packet.hopCount--;
                     if (packet.hopCount >= 0) {
                         route(packet);
@@ -152,7 +151,10 @@ public abstract class AbstractDynamicRouter extends Router {
 
             if (!process) {
                 // Didn't do anything, so sleep a bit
-                try { Thread.sleep(1); } catch (InterruptedException e) { }
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
             }
         }
     }
