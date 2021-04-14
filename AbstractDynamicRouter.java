@@ -93,7 +93,7 @@ public abstract class AbstractDynamicRouter extends Router {
         long nextFindCost = System.currentTimeMillis() + 1000;
         while (true) {
             if (System.currentTimeMillis() > nextFindCost) {
-                //System.out.println("finding costs");
+                // System.out.println("finding costs");
                 nextFindCost = System.currentTimeMillis() + costDelay;
                 findCosts();
             }

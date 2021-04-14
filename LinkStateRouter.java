@@ -5,7 +5,6 @@
  * Represents a router that uses a Link State Routing algorithm.
  ***************/
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -14,15 +13,6 @@ import java.util.HashSet;
 
 public class LinkStateRouter extends AbstractDynamicRouter {
 
-    public static class RoutedPacket extends Packet  {
-        public List<Integer> route;
-
-        public RoutedPacket (Packet packet, List<Integer> route) {
-            super(packet.source, packet.dest, packet.hopCount, packet.payload);
-            this.route = route;
-        }
-    }
-    
     public static class LinkStatePacket extends Packet {
         Map<Integer,Long> costs; // Link state packet contains all of the information it has learned from its neighbors
         Set<Integer> nodesVisited;
@@ -63,7 +53,6 @@ public class LinkStateRouter extends AbstractDynamicRouter {
 
     // Calculate shortest paths from this node to every other node using Djikstra's algorithm. Populates this.paths
     public void findShortestPaths() {        
-        // TODO: calculate shortest paths
         Map<Integer, DLPair> workingTable = new HashMap<>(); // All the nodes with their distances
         Map<Integer, DLPair> finalTable = new HashMap<>();
         workingTable.put(this.nsap, new DLPair(0,-1));
@@ -77,47 +66,45 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             }
 
             // Store info about the selected node
-            int nsap = min.getKey();
-            DLPair info = min.getValue();
+            int nsapU = min.getKey();
+            DLPair infoU = min.getValue();
             
             // 1a. remove the key from the workingTable and move it to the finalTable
-            finalTable.put(nsap, info);
-            workingTable.remove(nsap);
+            finalTable.put(nsapU, infoU);
+            workingTable.remove(nsapU);
             
             // 2. grab the links for that key (links are stored in the linkStateTable)
-            Set<Integer> links = null;
+            Set<Integer> linksU = null;
             try {
-                links = linkStateTable.get(nsap).keySet();
+                linksU = linkStateTable.get(nsapU).keySet();
             } catch (NullPointerException e) {
                 if (linkStateTable.isEmpty()) {
                     System.out.println("Router " + this.nsap + ": My link state table is empty. Not ready to build a routing table.");
                 } else {
-                    System.out.println("Router " + this.nsap + ": Could not find router " + nsap + " in my link state table. All we have is " + linkStateTable);
+                    System.out.println("Router " + this.nsap + ": Could not find router " + nsapU + " in my link state table. All we have is " + linkStateTable);
                 }
                 return;
             }
+
             //Relaxation Process
             // 3. for each link, get the distance to that link, and add it to d
-            for (Integer link : links) {
-                long distance = linkStateTable.get(nsap).get(link) + info.distance;
+            for (Integer nsapV : linksU) {
+                long distanceV = linkStateTable.get(nsapU).get(nsapV) + infoU.distance; // distance from source to V when going through U
                 
                 // 4. if that distance is better than the distance stored in workingTable, then update the workingTable with that distance and link l (also check for nulls)
-                DLPair currentValues = finalTable.get(nsap);
-                if (currentValues == null) {
-                    finalTable.put(nsap, new DLPair(distance, link));
-                } else if (distance < currentValues.distance) {
-                    // set new distance
-                    currentValues.distance = distance;
-                    currentValues.link = link;
+                if (!finalTable.containsKey(nsapV)) {
+                    DLPair currentInfoV = workingTable.get(nsapV);
+                    if (currentInfoV == null || distanceV < currentInfoV.distance) {
+                        // We know that the shortest distance to V is through U. If the link is -1, use ourself instead.
+                        workingTable.put(nsapV, new DLPair(distanceV, infoU.link == -1 ? nsapV : infoU.link)); // Shortest distance to V is through U
+                    }
                 }
-            
-            }
 
-            
+            }
         }
-         // finalTable is the routing table we want to use in the route function
-         this.routingTable.clear();
-         for (Map.Entry<Integer, DLPair> entry : finalTable.entrySet()) {
+        // finalTable is the routing table we want to use in the route function
+        this.routingTable.clear();
+        for (Map.Entry<Integer, DLPair> entry : finalTable.entrySet()) {
             this.routingTable.put(entry.getKey(), entry.getValue().link);
         }
     }
@@ -130,6 +117,22 @@ public class LinkStateRouter extends AbstractDynamicRouter {
                 // This packet hasn't reached this node yet - so send it along!
                 nic.sendOnLink(i, p);
             }
+        }
+    }
+
+    private void printNetwork() {
+        System.out.printf("Network for %d:\n", this.nsap);
+        for (Map.Entry<Integer, Map<Integer, Long>> entry : linkStateTable.entrySet()) {
+            int source = entry.getKey();
+            Map<Integer, Long> neighbors = entry.getValue();
+            System.out.print("Src: " + source + " ");
+            for (Map.Entry<Integer, Long> neighborEntry : neighbors.entrySet()) {
+                int nsap = neighborEntry.getKey();
+                long distance = neighborEntry.getValue();
+
+                System.out.printf("[%d %d] ", nsap, distance);
+            }
+            System.out.println();
         }
     }
 
@@ -150,6 +153,7 @@ public class LinkStateRouter extends AbstractDynamicRouter {
             debug.println(4, "Received a Packet");
 
             if (p.dest == this.nsap) {
+                // Packet has arrived at its destination
                 nic.trackArrivals(p.payload);
             } else {
                 // Lookup next stop from routing table and send the packet there
@@ -158,9 +162,8 @@ public class LinkStateRouter extends AbstractDynamicRouter {
                     int linkIndex = nic.getOutgoingLinks().indexOf(nextStop);
                     nic.sendOnLink(linkIndex, p);
                 } else {
-                    // Destination is not in the routing table yet
+                    // Destination is not in the routing table yet. Drop the packet.
                     debug.println(4, "Router " + this.nsap + ": Router " + p.dest + " is not in my routing table yet. All I have is " + routingTable.toString());
-                    // drop packet?
                 }
                 
             }
@@ -184,9 +187,14 @@ public class LinkStateRouter extends AbstractDynamicRouter {
 
         // Add our own neighbors to the link state table, in addition to the ones we get from other routers
         linkStateTable.put(this.nsap, this.neighborCosts);
+        if (this.nsap == 14) {
+            printNetwork();
+        }
 
         // Perform Djikstra's Algorithm to build a list of shortest paths using the routing table
+        System.out.println("Before findShortestPaths");
         findShortestPaths();
+        System.out.println("After findShortestPaths");
     }
 
 }
