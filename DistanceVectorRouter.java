@@ -8,22 +8,21 @@ import java.util.Map;
  ***************/
 
 public class DistanceVectorRouter extends AbstractDynamicRouter {
-    Map<Integer, Long> routingTable; // Change to routingTable
-    Map<Integer, Integer> routingTableIndex;
-    // routingTable of each link
+    Map<Integer, Long> distances; // Change to routingTable
+    Map<Integer, Integer> routingTable;
     ArrayList<Map<Integer, Long>> neighborTables; // Tables that are being recieved from neighbors
 
     public DistanceVectorRouter(int nsap, NetworkInterface nic) {
         super(nsap, nic);
+        distances = new HashMap<>();
         routingTable = new HashMap<>();
-        routingTableIndex = new HashMap<>();
         int size = nic.getOutgoingLinks().size(); // number of links
+        
         neighborTables = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             neighborTables.add(null);
-
         }
-        // System.out.println(super.neighborCosts);
+
 
     }
 
@@ -63,6 +62,24 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
             int sourceIndex = nic.getOutgoingLinks().indexOf(source);
             neighborTables.set(sourceIndex, ((TablePacket) p).tableDistances);
         } else {
+             // This is a normal data packet
+             debug.println(4, "Received a Packet");
+
+             if (p.dest == this.nsap) {
+                 // Packet has arrived at its destination, so report that it was received successfully!
+                 nic.trackArrivals(p.payload);
+             } else {
+                 // Lookup the next stop from routing table and send the packet there
+                 Integer nextStop = routingTable.get(p.dest);
+                 if (nextStop != null) {
+                     int linkIndex = nic.getOutgoingLinks().indexOf(nextStop);
+                     nic.sendOnLink(linkIndex, p);
+                 } else {
+                     // Destination is not in the routing table yet. Drop the packet.
+                     debug.println(4, "Router " + this.nsap + ": Router " + p.dest + " is not in my routing table yet. All I have is " + routingTable.toString());
+                 }
+                 
+             }
             // Send packet along
         }
 
@@ -85,9 +102,6 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
         // findShortestPaths();
     }
 
-    protected void sendTables() {
-
-    }
     protected void buildTableIndex() {
         //create a temp empty table index and a empty table distance
 
@@ -113,6 +127,25 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
             System.out.println();
          }
         }
+        for (int i = 0; i< neighborTables.size(); i++){
+            int nsap = nic.getOutgoingLinks().get(i);
+            Map<Integer,Long> table = neighborTables.get(i);
+            if (table != null){
+                for (Integer dest: table.keySet()) {
+                    Long distance = table.get(dest);
+                    if(tempTableDistances.get(dest) == null){
+                        tempTableDistances.put(dest,neighborCosts.get(nsap)+ distance);
+                        distances.put(dest,neighborCosts.get(nsap)+ distance);
+                        tempTableIndex.put(dest, nsap);
+                    } else if(tempTableDistances.get(dest) > distance + neighborCosts.get(nsap)){
+                        tempTableDistances.put(dest,neighborCosts.get(nsap)+ distance);
+                        distances.put(dest,neighborCosts.get(nsap)+ distance);
+                        tempTableIndex.put(dest, nsap);
+                    }
+                }
+            }
+            System.out.println();
+         }
         
         //transmit tableDistance to all neighbors
         ArrayList<Integer> neighbors = nic.getOutgoingLinks();
@@ -123,123 +156,7 @@ public class DistanceVectorRouter extends AbstractDynamicRouter {
         }
     
         //Make temp tableIndex the routingTableIndex
-        this.routingTableIndex = tempTableIndex;    
-    }
-   /* protected void buildTableIndex() {
-        // create a temp empty table index and a empty table distance
-
-        Map<Integer, Long> neighborCosts = super.neighborCosts;
-        Map<Integer, Integer> tempTableIndex = new HashMap<>(); // NSAP to index, use for routing
-        Map<Integer, Long> tempTableDistances = new HashMap<>(); // Table with distances to be sent to other nodes
-
-        // Insert ur own node with distance 0 and index -1
-        tempTableIndex.put(this.nsap, -1);
-        tempTableDistances.put(this.nsap, 0L);
-
-        // go through all neighbor tables to update table index and table dis
-
-        for (int i = 0; i < neighborTables.size(); i++) {
-            int nsap = nic.getOutgoingLinks().get(i);
-            Map<Integer, Long> table = neighborTables.get(i);//Is always null
-            if (table != null) {
-                for (Integer dest : table.keySet()) {
-                    Long distance = table.get(dest);
-                    System.out.println(":|");
-                }
-            }
-            System.out.println();
-        }
-
-        System.out.println("^-------");
-        for (int i = 0; i < neighborTables.size(); i++) {
-            int nsap = nic.getOutgoingLinks().get(i);
-            System.out.println("Source:" + nsap + " :");
-            Map<Integer, Long> table = neighborTables.get(i);
-            if(table==null)
-            {
-                System.out.println(":(");
-            }
-            if (table != null) {
-                System.out.println(":)");
-                for (Integer dest : table.keySet()) {
-                    if (table.get(dest) == null) {
-                        table.put(dest, Long.MAX_VALUE);
-                    }
-                    if (table.get(dest) != Long.MAX_VALUE
-                            && nic.getOutgoingLinks().get(i) + neighborCosts.get(dest) < table.get(dest)) {
-                                table.put(dest, nic.getOutgoingLinks().get(i) + neighborCosts.get(dest) );
-                                System.out.println(":))");
-                    }
-
-                }
-            }
-            tempTableDistances=table;
-            System.out.println();
-        }
-        System.out.println(">--------");
-        /*
-         * /*
-         * 
-         * Get the costs and we need to put the neighbor ID and the distance into the
-         * tempTableIndex
-         
-        // transmit tableDistance to all neighbors
-
-        ArrayList<Integer> neighbors = nic.getOutgoingLinks();
-
-        for (int i = 0; i < neighbors.size(); i++) {
-            TablePacket p = new TablePacket(this.nsap, tempTableDistances);
-            nic.sendOnLink(i, p);
-        }
-
-        // Make temp tableIndex the routingTableIndex
-        this.routingTableIndex = tempTableIndex;
-    }
-    */
-    protected void findShortestPaths(Map<Integer, Long> neighborCosts) {
-
-        // for (int o = 0; o < 100; o++) {
-        // debug.println(0, "NeighborCosts[" + o + "]=" + neighborCosts.get(o));
-        // }
-        for (Object src : neighborCosts.keySet().toArray()) {
-            debug.println(0, "NC.get=" + neighborCosts.get(src) + " From Source: " + (int) src);
-        }
-        for (int i = 0; i < nic.getOutgoingLinks().size(); i++) {
-            debug.println(0, "getOutGoingLinks[i]=" + nic.getOutgoingLinks().get(i));
-        }
-
-        // debug.println(0, "Step 0.5");// + "Link Distance" + linkDis);
-        // int source = super.nsap;
-        // int ncs = neighborCosts.size();
-        // this.routingTable.put(source, (long) 0);
-        // ArrayList<Integer> links = nic.getOutgoingLinks();
-        // debug.println(0, "NeighborCostsSize=" + ncs);// + "Link Distance" + linkDis);
-        // debug.println(0, "Link Size=" + links.size());
-        // for (int j = 1; j < ncs; j++) {
-        // for (int k = 0; k < links.size(); k++) {
-        // int srcLink = links.get(k);
-        // int desLink = (int) neighborCosts.keySet().toArray()[k];
-        // debug.println(0, "Des Link:" + desLink);
-        // long linkDis = neighborCosts.get(k);
-        // debug.println(0, "DistanceVectorrouter: Source Link:" + srcLink +
-        // "Destination Link:" + desLink
-        // + "Link Distance:" + linkDis);
-        // if (this.routingTable.get(srcLink) != Long.MAX_VALUE
-        // && this.routingTable.get(srcLink) + linkDis < this.routingTable.get(desLink))
-        // {
-        // debug.println(0, "Step 4");
-        // this.routingTable.put(desLink, this.routingTable.get(srcLink) + linkDis);
-        // this.routingTableIndex.put(desLink, srcLink);
-        // } else {
-        // debug.println(0, "RoutingTable.get(srcLink)=" +
-        // this.routingTable.get(srcLink));
-        // }
-        // }
-
-        // }
-
-        // Print when packets arrives and the cost
-
+        this.routingTable = tempTableIndex;    
     }
 
 }
