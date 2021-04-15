@@ -3,8 +3,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /***************
- * DistanceVectorRouter Author: Christian Duncan Modified by: Represents a
- * router that uses a Distance Vector Routing algorithm.
+ * DistanceVectorRouter 
+ * Authors: Brian Carballo, Ryan Clark, James Jacobson 
+ * Represents a router that uses a Distance Vector Routing algorithm.
  ***************/
 
 public class DistanceVectorRouter extends AbstractDynamicRouter {
