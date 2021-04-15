@@ -1,7 +1,7 @@
 
 /***************
  * Abstract Dynamic Router
- * Author: Joey Germain, Phillip Nam, Kevin Sangurima, Brian Carabllo, James Jacobson, Ryan Clark
+ * Author: Joey Germain, Phillip Nam, Kevin Sangurima, Brian Carballo, James Jacobson, Ryan Clark
  * An abstract class that represents a dynamic router
  ***************/
 import java.util.Map;
